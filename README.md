@@ -1,21 +1,8 @@
-# lluviecita
+# drizzle
 
 toy compiler, toy language, llvm ir
 
 small version of rainy (woah)
-
-## name
-
-```
-autumn — Today at 6:35 PM
-(friend name)
-important question
-how would i add -ita to lluvia
-
-(friend name) — Today at 6:41 PM
-lluviecita
-Is for like spring rain
-```
 
 ## run
 
