@@ -10,7 +10,7 @@ you need `clang` cause this generates :sparkles: llvm ir :sparkles:
 version requirements to be determined
 
 ```
-$ pnpm run cli -- build source.lv dest
+$ pnpm run cli -- build source.dzl dest
 ```
 
 ## license / credits
