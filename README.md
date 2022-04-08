@@ -15,6 +15,6 @@ $ pnpm run cli -- build source.lv dest
 
 ## license / credits
 
-shoutout to my friend's thing [sinos] for like half the code here
+shoutout to my friend's thing [jiji] for like half the code here
 
-[sinos]: https://github.com/unleashy/sinos/
+[jiji]: https://github.com/unleashy/jiji/
