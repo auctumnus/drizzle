@@ -32,6 +32,17 @@ export class Span {
     readonly end: Location
   ) {}
 
+  static join(a: Span, b: Span) {
+    if(a.file !== b.file) {
+      throw new Error('Spans are of different files!')
+    }
+    if(a.start.index < b.start.index) {
+      return new Span(a.file, a.start, b.end)
+    } else {
+      return new Span(a.file, b.start, a.end)
+    }
+  }
+
   get length() {
     return this.end.index - this.start.index
   }
@@ -43,7 +54,7 @@ export class Span {
   /**
    * @param numLines The maximum number of lines to include around the span.
    */
-  context(numLines=1, highlightCharacter='^') {
+  context(includeMeta=true, numLines=1, highlightCharacter='^') {
     const underline = makeUnderline(highlightCharacter)
 
     const lines = this.file.source.split('\n')
@@ -64,7 +75,6 @@ export class Span {
     if(spanLines.length === 1) {
       const line = spanLines[0]
       const startOffset = wcwidth(line.slice(0, this.start.column))
-
 
       highlightedSpanLines = [
         lineNum(this.start.row) + line,
@@ -101,10 +111,10 @@ export class Span {
     meta += colors.blue('—— ') + location + colors.blue(' ——')
 
     return [
-      meta,
+      includeMeta ? meta : '',
       ...before.map(addContextLineNums(this.start.row - before.length)),
       ...highlightedSpanLines,
       ...after.map(addContextLineNums(this.start.row + spanLines.length))
-    ].join('\n')
+    ].filter(s => s).join('\n')
   }
 }

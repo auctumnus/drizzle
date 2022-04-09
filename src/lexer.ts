@@ -1,6 +1,8 @@
+import { DrizzleError, DrizzleErrorHandler } from "./error";
 import { Source } from "./source";
 import { Span } from "./span";
 import { kinds, Token, keywords } from "./token";
+import colors from '@colors/colors'
 
 // keywords that can also technically be identifiers
 const IDENTIFIER_KEYWORDS = 'and or not xor shl shr'.split(' ')
@@ -16,11 +18,23 @@ const isShortOperator = oneOf('^!.:?')
 const isLongOperator  = oneOf('+-*/%=')
 const isQuote         = oneOf('\'"`') // so unfortunate that at least one of
                                       // these needed to be escaped
+const isEscape        = oneOf('nrt\\\'"ae')
 
 const isUnicode = (p: string) => (c: string) => !!c.match(new RegExp(`^\\p{${p}}$`, 'u'))
 const isWhitespace   = isUnicode('White_Space')
 const isNameStart    = (c: string) => c === '_' || isUnicode('XID_Start')(c)
 const isNameContinue = (c: string) => (c >= '0' && c <= '9') || isUnicode('XID_Continue')(c)
+
+const escapes = {
+  n: '\n',
+  r: '\r',
+  t: '\t',
+  '\\': '\\',
+  "'": "'",
+  '"': '"',
+  a: '\x07',
+  e: '\x1b'
+}
 
 // emma 🍞 — 03/13/2022
 // world if js had pattern matching
@@ -37,15 +51,36 @@ const identify = (span: Span): Token<never | string> => {
   }
 }
 
+const isHex = (c: string) =>
+  (c >= '0') && (c <= '9') ||
+  (c >= 'a') && (c <= 'f') ||
+  (c >= 'A') && (c <= 'F')
+
+const prettyPrint = (level: string) => (e: DrizzleError) => {
+  console.error(level, colors.bold(e.message))
+  console.error(e.location.context())
+  if(e.hint) {
+    console.error(
+      colors.gray(`${colors.bold('hint:')} ${e.hint}`) +
+      (e.replaceWith ? `${colors.gray(':')} \`${e.replaceWith}\`` : '')
+    )
+  }
+}
+
+const prettyPrintWarn = prettyPrint(colors.yellow(colors.bold('warn:')))
+const prettyPrintErr = prettyPrint(colors.red(colors.bold('error:')))
+
+const fromCodePoint = (s: string) => String.fromCodePoint(parseInt(s, 16))
+
 /**
  * Lexes the source file into tokens.
  */
 export class Lexer {
-  constructor(private source: Source) {}
-
-  error() {
-  
-  }
+  constructor(
+    private source: Source,
+    public warnHandler: DrizzleErrorHandler = prettyPrintWarn,
+    public errorHandler: DrizzleErrorHandler = prettyPrintErr
+  ) {}
 
   /**
    * Reads the next token.
@@ -53,7 +88,7 @@ export class Lexer {
   next() {
     this.skipWhitespace()
     this.source.startSpan()
-    return this.identifier() || this.operator()
+    return this.identifier() || this.operator() || this.string()
   }
 
   private skipWhitespace() {
@@ -95,10 +130,86 @@ export class Lexer {
 
   private string(): Token<string> {
     const openingQuote = this.source.peek()
+    let value = ""
     if(isQuote(openingQuote)) {
-      
+      this.source.next()
+      let next = this.source.peek()
+      while(next = this.source.peek(), next !== openingQuote) {
+        if(next === null) {
+          const s = this.source.endSpan()
+          this.errorHandler(new DrizzleError(s, 'Unclosed string', 'close the string', s + openingQuote))
+          return null
+        } else if(next === '\\') {
+          value += this.escapeSequence()
+        } else {
+          value += this.source.next()
+        }
+      }
+      this.source.next()
+      const span = this.source.endSpan()
+      return { kind: kinds.string(value), span}
     } else {
       return null
+    }
+  }
+
+  private hexOfLength(length: number) {
+    this.source.startSpan()
+    for(let i = 0; i < length; i++) {
+      const next = this.source.peek()
+      if(next === null) {
+        this.errorHandler(new DrizzleError(this.source.endSpan(), 'Unexpected EOF in escape sequence'))
+        return null
+      } else if(isHex(next)) {
+        this.source.next()
+      } else {
+        this.errorHandler(new DrizzleError(this.source.endSpan(), 'Invalid characters following hex or unicode escape', `"${next}" is not a-f / A-F / 0-9`))
+        this.source.endSpan()
+        return null
+      }
+    }
+    return this.source.endSpan()
+  }
+
+  private escapeSequence(): string {
+    this.source.startSpan()
+    this.source.next()
+    const esc = this.source.next()
+    if(esc === 'x') {
+      const span = this.hexOfLength(2)
+      if(!span) return ''
+      this.source.endSpan()
+      return fromCodePoint(span.toString())
+    } else if(esc === 'u') {
+      if(this.source.next() !== '{') {
+        const s = this.source.endSpan()
+        this.errorHandler(new DrizzleError(s, 'Expected {', 'complete the unicode escape', s + '{01f327}'))
+        return ''
+      }
+      let span = this.hexOfLength(4)
+      if(!span) return ''
+      if(isHex(this.source.peek()) && isHex(this.source.peekOffset(1))) {
+        const extension = this.hexOfLength(2)
+        if(!extension) return ''
+        span = Span.join(span, extension)
+      }
+      this.source.endSpan()
+      if(this.source.next() !== '}') {
+        const s = this.source.endSpan()
+        this.errorHandler(new DrizzleError(
+          s,
+          'Unclosed bracket in escape sequence',
+          'add a bracket at the end',
+          s + '}'
+        ))
+        return ''
+      }
+      return fromCodePoint(span.toString())
+    } else if(escapes.hasOwnProperty(esc)) {
+      return escapes[esc]
+    } else {
+      this.warnHandler(new DrizzleError(this.source.endSpan(), 'Invalid escape sequence', ))
+      return esc
     }
   }
 }

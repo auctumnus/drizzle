@@ -1,6 +1,8 @@
 import { Span } from "./span";
 
-export class DrizzleError extends Error {
+export type DrizzleErrorHandler = (e: DrizzleError) => any
+
+export class DrizzleError {
   /**
    * Where the error occurred.
    */
@@ -22,10 +24,13 @@ export class DrizzleError extends Error {
   replaceWith?: string
 
   constructor(location: Span, message: string, hint?: string, replaceWith?: string) {
-    super(message)
     this.location = location
     this.message = message
     this.hint = hint
     this.replaceWith = replaceWith
+  }
+
+  toString() {
+    return this.location.context()
   }
 }

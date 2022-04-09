@@ -68,6 +68,13 @@ export class Source {
   }
 
   /**
+   * Reverses the index by one.
+   */
+  ungetc() {
+    this.loc.index--
+  }
+
+  /**
    * Begins a span, or area of text.
    */
   startSpan() {

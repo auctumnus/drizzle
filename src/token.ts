@@ -29,6 +29,7 @@ export const kinds = Object.freeze(Object.assign({
   ...keywords,
   operator:   valuedKind<string>('operator'),
   identifier: valuedKind<string>('identifier'),
+  string:     valuedKind<string>('string'),
   integer:    valuedKind<number>('integer'),
   float:      valuedKind<number>('float')
 }))
