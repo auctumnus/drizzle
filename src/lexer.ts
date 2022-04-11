@@ -140,7 +140,7 @@ export class Lexer {
           this.errorHandler(new DrizzleError(s, 'Unclosed string', 'close the string', s + openingQuote))
           return null
         } else if(next === '\\') {
-          value += this.escapeSequence()
+          value += this.escapeSequence(openingQuote)
         } else {
           value += this.source.next()
         }
@@ -153,12 +153,15 @@ export class Lexer {
     }
   }
 
-  private hexOfLength(length: number) {
+  private hexOfLength(quoteChar: string, length: number) {
     this.source.startSpan()
-    for(let i = 0; i < length; i++) {
+    for(let _ = 0; _ < length; _++) {
       const next = this.source.peek()
       if(next === null) {
         this.errorHandler(new DrizzleError(this.source.endSpan(), 'Unexpected EOF in escape sequence'))
+        return null
+      } else if(next === quoteChar) {
+        this.errorHandler(new DrizzleError(this.source.endSpan(), 'Unexpected end of string in escape sequence'))
         return null
       } else if(isHex(next)) {
         this.source.next()
@@ -171,12 +174,12 @@ export class Lexer {
     return this.source.endSpan()
   }
 
-  private escapeSequence(): string {
+  private escapeSequence(openingQuote: string): string {
     this.source.startSpan()
     this.source.next()
     const esc = this.source.next()
     if(esc === 'x') {
-      const span = this.hexOfLength(2)
+      const span = this.hexOfLength(openingQuote, 2)
       if(!span) return ''
       this.source.endSpan()
       return fromCodePoint(span.toString())
@@ -186,14 +189,13 @@ export class Lexer {
         this.errorHandler(new DrizzleError(s, 'Expected {', 'complete the unicode escape', s + '{01f327}'))
         return ''
       }
-      let span = this.hexOfLength(4)
+      let span = this.hexOfLength(openingQuote, 4)
       if(!span) return ''
       if(isHex(this.source.peek()) && isHex(this.source.peekOffset(1))) {
-        const extension = this.hexOfLength(2)
+        const extension = this.hexOfLength(openingQuote, 2)
         if(!extension) return ''
         span = Span.join(span, extension)
       }
-      this.source.endSpan()
       if(this.source.next() !== '}') {
         const s = this.source.endSpan()
         this.errorHandler(new DrizzleError(
@@ -204,6 +206,7 @@ export class Lexer {
         ))
         return ''
       }
+      this.source.endSpan()
       return fromCodePoint(span.toString())
     } else if(escapes.hasOwnProperty(esc)) {
       return escapes[esc]

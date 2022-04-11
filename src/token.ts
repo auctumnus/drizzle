@@ -8,7 +8,7 @@ interface Kind<T> {
 const kind = <T>(name: string) => ({ [name]: { name } as Kind<T> })
 
 const valuedKind = <T>(name: string) => (value: T) => ({
-  ...kind<T>(name),
+  name,
   value
 })
 
