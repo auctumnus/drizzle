@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "test": "uvu -r ts-node/register test",
+    "test:coverage": "c8 --include=src npm test",
     "cli": "ts-node src/cli.ts"
   },
   "author": "autumn",
@@ -12,6 +13,7 @@
   "devDependencies": {
     "@types/node": "^17.0.23",
     "@types/wcwidth": "^1.0.0",
+    "c8": "^7.11.0",
     "ts-node": "^10.7.0",
     "typescript": "^4.6.3",
     "uvu": "^0.5.3"

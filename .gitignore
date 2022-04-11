@@ -1,3 +1,7 @@
+# node
 node_modules
 dist
+coverage
+
+# i just fuck around in here lol
 playground.ts
