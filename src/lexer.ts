@@ -14,7 +14,7 @@ const oneOf = (chars: string) => {
   return (c: string) => a.includes(c)
 }
 
-const isShortOperator = oneOf('^!.:?')
+const isShortOperator = oneOf('^!.:?(){}[];^@')
 const isLongOperator  = oneOf('+-*/%=')
 const isQuote         = oneOf('\'"`') // so unfortunate that at least one of
                                       // these needed to be escaped
@@ -108,7 +108,9 @@ export class Lexer {
     const next = this.source.peek()
     if(isLongOperator(next)) {
       this.source.next()
-      if(this.source.peek() === '=') {
+      if(next === '=' && this.source.peek() === '>') {
+        this.source.next()
+      } else if(this.source.peek() === '=') {
         this.source.next()
       }
     } else if(isShortOperator(next)) {

@@ -1,6 +1,6 @@
 import { test } from 'uvu'
 import * as assert from 'uvu/assert'
-import { expectError, firstToken } from '../util'
+import { firstToken } from '../util'
 
 test('ascii ident', () => {
   firstToken('abc', t => {
