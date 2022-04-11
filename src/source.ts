@@ -67,11 +67,8 @@ export class Source {
     }
   }
 
-  /**
-   * Reverses the index by one.
-   */
-  ungetc() {
-    this.loc.index--
+  match(s: string) {
+    return s.split('').every((c, i) => this.peekOffset(i) === c)
   }
 
   /**

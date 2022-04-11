@@ -19,11 +19,12 @@ const isLongOperator  = oneOf('+-*/%=')
 const isQuote         = oneOf('\'"`') // so unfortunate that at least one of
                                       // these needed to be escaped
 const isEscape        = oneOf('nrt\\\'"ae')
+const isDigit = (c: string) => c >= '0' && c <= '9'
 
 const isUnicode = (p: string) => (c: string) => !!c.match(new RegExp(`^\\p{${p}}$`, 'u'))
 const isWhitespace   = isUnicode('White_Space')
 const isNameStart    = (c: string) => c === '_' || isUnicode('XID_Start')(c)
-const isNameContinue = (c: string) => (c >= '0' && c <= '9') || isUnicode('XID_Continue')(c)
+const isNameContinue = (c: string) => isDigit(c) || isUnicode('XID_Continue')(c)
 
 const escapes = {
   n: '\n',
@@ -52,7 +53,7 @@ const identify = (span: Span): Token<never | string> => {
 }
 
 const isHex = (c: string) =>
-  (c >= '0') && (c <= '9') ||
+  isDigit(c) ||
   (c >= 'a') && (c <= 'f') ||
   (c >= 'A') && (c <= 'F')
 
@@ -88,11 +89,117 @@ export class Lexer {
   next() {
     this.skipWhitespace()
     this.source.startSpan()
-    return this.identifier() || this.operator() || this.string()
+    return this.identifier() || this.operator() || this.string() || this.number()
   }
 
   private skipWhitespace() {
     this.source.skip(isWhitespace)
+  }
+
+  private numericise(span: Span) {
+    let s = span.toString()
+    if(s.endsWith('_')) {
+      try {
+        span = this.source.endSpan()
+        s = span.toString()
+      } catch(_) {}
+      this.errorHandler(new DrizzleError(span, 'a number cannot end with an underscore', 'remove the underscore(s) at the end', s.replace(/_+$/, '')))
+      return null
+    }
+    const value = Number(s.replaceAll('_', ''))
+    if(!(Number.isFinite(value) || Number.isNaN(value))) {
+      this.errorHandler(new DrizzleError(span, 'couldn\'t parse this number'))
+      return null
+    } else if(!Number.isInteger(value)) {
+      return { kind: kinds.float(value), span }
+    } else {
+      if(!Number.isSafeInteger(value)) {
+        this.warnHandler(new DrizzleError(span, 'this number isn\'t safe for JS - interesting things may happen'))
+      }
+      return { kind: kinds.integer(value), span }
+    }
+  }
+
+  private number(allowFloat=true, allowSign=true): Token<number> {
+    if(allowSign && (this.source.peek() === '-' || this.source.peek() === '+')) {
+      this.source.next()
+    }
+    if(this.source.match('0x') || this.source.match('0c') || this.source.match('0b')) {
+
+      this.source.next()
+      let base = 10
+      switch(this.source.next()) {
+        case 'x':
+          base = 16
+          break
+        case 'c':
+          base = 8
+          break
+        case 'b':
+          base = 2
+          break
+      }
+      this.source.startSpan()
+      if(isDigit(this.source.peek())) {
+        this.source.next()
+        this.source.skip(c => isDigit(c) || c === '_')
+        const span = this.source.endSpan()
+        const s = span.toString()
+        if(s.endsWith('_')) {
+          const sp = this.source.endSpan()
+          this.errorHandler(new DrizzleError(sp, 'a number cannot end with an underscore', 'remove the underscore(s) at the end', sp.toString().replace(/_+$/, '')))
+          return null
+        }
+
+        const value = Number.parseInt(s.toString(), base)
+
+        const wholeSpan = this.source.endSpan()
+
+        if(!Number.isSafeInteger(value)) {
+          this.warnHandler(new DrizzleError(wholeSpan, 'this number isn\'t safe for JS - interesting things may happen'))
+        }
+
+        return { kind: kinds.integer(value), span: wholeSpan}
+      } else {
+        this.source.endSpan()
+        this.errorHandler(new DrizzleError(this.source.endSpan(), 'expected digit after base tag'))
+        return null
+      }
+    }
+    if(isDigit(this.source.peek())) {
+      this.source.next()
+      this.source.skip(c => isDigit(c) || c === '_')
+      if(allowFloat && this.source.peek() === '.') {
+        return this.float()
+      } else if(this.source.peek()?.toLowerCase() === 'e') {
+        this.source.next()
+        this.source.startSpan()
+        const exponent = this.number()
+        if(!exponent) {
+          try {
+          this.errorHandler(new DrizzleError(this.source.endSpan(), 'expected exponent', 'an exponent number looks like `10e6` for the value 10^6'))
+          } catch(_) { }
+          return null
+        }
+        const span = this.source.endSpan()
+        return this.numericise(span)
+      } else {
+        return this.numericise(this.source.endSpan())
+      }
+    }
+  }
+
+  private float() {
+    // this function is only called from `number`, so we make some assumptions
+    // namely, we're before a sequence like `.123`
+    this.source.next()
+    if(!isDigit(this.source.peek())) {
+      this.errorHandler(new DrizzleError(this.source.endSpan(), 'expected fractional-part', 'a float must have a form like `0.0`, not `.0` or `0.`'))
+      return null
+    }
+    this.source.next()
+    this.source.skip(c => isDigit(c) || c === '_')
+    return this.numericise(this.source.endSpan())
   }
 
   private identifier(): Token<string | never> | null {
