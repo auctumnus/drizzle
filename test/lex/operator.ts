@@ -8,26 +8,21 @@ const opOf = (o: string) => (t: Token<string>) => {
   assert.is(t.kind.name, 'operator')
 }
 
+const firstIsOpOf = (o: string) => firstToken(o, opOf(o))
+
 test('short operators', () => {
-  '^!.:?(){}[];^@'.split('').forEach(o => {
-    firstToken(o, opOf(o))
-  })
+  '^!.:?(){}[];^@'.split('').forEach(firstIsOpOf)
 })
 
 test('*= vs *', () => {
   '+-*/%='.split('').forEach(o => {
-    firstToken(o, opOf(o))
-    firstToken(o + '=', opOf(o + '='))
+    firstIsOpOf(o)
+    firstIsOpOf(o + '=')
   })
 })
 
-test('=>', () => {
-  firstToken('=>', opOf('=>'))
-})
-
-test('>>= and <<=', () => {
-  firstToken('>>=', opOf('>>='))
-  firstToken('<<=', opOf('<<='))
+test('=>, >=, <=, >>= and <<=', () => {
+  '=> >= <= >>= <<='.split(' ').forEach(firstIsOpOf)
 })
 
 test.run()

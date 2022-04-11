@@ -108,16 +108,18 @@ export class Lexer {
     const next = this.source.peek()
     if(isLongOperator(next)) {
       this.source.next()
-      if(next === '=' && this.source.peek() === '>') {
+      if(next === '=' && this.source.peek() === '>') { // =>
         this.source.next()
-      } else if(this.source.peek() === '=') {
+      } else if(this.source.peek() === '=') { // ==
         this.source.next()
       }
     } else if(isShortOperator(next)) {
       this.source.next()
     } else if(next === '>' || next === '<') {
       this.source.next()
-      if(this.source.peek() === next) { // >> or <<
+      if(this.source.peek() === '=') { // >= or <=
+        this.source.next()
+      } else if(this.source.peek() === next) { // >> or <<
         this.source.next()
         if(this.source.peek() === '=') { // >>= or <<=
           this.source.next()
