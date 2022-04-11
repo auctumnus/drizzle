@@ -15,6 +15,9 @@ $ pnpm run cli -- build source.dzl dest
 
 ## license / credits
 
+license is [nvpl]
+
 shoutout to my friend's thing [jiji] for like half the code here
 
+[nvpl]: https://git.pixie.town/thufie/npl-builder/raw/branch/main/nvpl.md
 [jiji]: https://github.com/unleashy/jiji/
