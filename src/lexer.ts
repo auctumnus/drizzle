@@ -122,11 +122,7 @@ export class Lexer {
     }
   }
 
-  private number(allowFloat=true, allowSign=true): Token<number> {
-    if(allowSign && (this.source.peek() === '-' || this.source.peek() === '+')) {
-      this.source.next()
-    }
-
+  private number(allowFloat=true): Token<number> {
     if(this.source.match('0x') || this.source.match('0c') || this.source.match('0b')) {
       this.source.next()
       let base = 10
@@ -177,6 +173,7 @@ export class Lexer {
       } else if(this.source.peek()?.toLowerCase() === 'e') {
         this.source.next()
         this.source.startSpan()
+        if(this.source.peek() === '-') this.source.next()
         const exponent = this.number()
         if(!exponent) {
           // TODO: i remember this being an issue but i dont remember why
@@ -207,6 +204,7 @@ export class Lexer {
     if(this.source.peek()?.toLowerCase() === 'e') {
         this.source.next()
         this.source.startSpan()
+        if(this.source.peek() === '-') this.source.next()
         const exponent = this.number()
         if(!exponent) {
           // TODO: same as above
