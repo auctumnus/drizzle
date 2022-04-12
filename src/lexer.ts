@@ -19,7 +19,7 @@ const isLongOperator  = oneOf('+-*/%=')
 const isQuote         = oneOf('\'"`') // so unfortunate that at least one of
                                       // these needed to be escaped
 const isEscape        = oneOf('nrt\\\'"ae')
-const isDigit = (c: string) => c >= '0' && c <= '9'
+const isDigit = (c: string) => c !== null && c >= '0' && c <= '9'
 
 const isUnicode = (p: string) => (c: string) => !!c.match(new RegExp(`^\\p{${p}}$`, 'u'))
 const isWhitespace   = isUnicode('White_Space')
@@ -52,11 +52,12 @@ const identify = (span: Span): Token<never | string> => {
   }
 }
 
-const isHex = (c: string) =>
-  isDigit(c) ||
-  (c >= 'a') && (c <= 'f') ||
-  (c >= 'A') && (c <= 'F')
+const inBase = (base: number) => (c: string) => !Number.isNaN(parseInt(c, base))
 
+const isHex = inBase(16)
+
+// we silence all errors in testing, so
+/* c8 ignore next 10 */
 const prettyPrint = (level: string) => (e: DrizzleError) => {
   console.error(level, colors.bold(e.message))
   console.error(e.location.context())
@@ -107,6 +108,7 @@ export class Lexer {
       return null
     }
     const value = Number(s.replaceAll('_', ''))
+    /* c8 ignore next 3 */
     if(!(Number.isFinite(value) || Number.isNaN(value))) {
       this.errorHandler(new DrizzleError(span, 'couldn\'t parse this number'))
       return null
@@ -124,8 +126,8 @@ export class Lexer {
     if(allowSign && (this.source.peek() === '-' || this.source.peek() === '+')) {
       this.source.next()
     }
-    if(this.source.match('0x') || this.source.match('0c') || this.source.match('0b')) {
 
+    if(this.source.match('0x') || this.source.match('0c') || this.source.match('0b')) {
       this.source.next()
       let base = 10
       switch(this.source.next()) {
@@ -140,9 +142,10 @@ export class Lexer {
           break
       }
       this.source.startSpan()
-      if(isDigit(this.source.peek())) {
+      const valid = inBase(base)
+      if(valid(this.source.peek())) {
         this.source.next()
-        this.source.skip(c => isDigit(c) || c === '_')
+        this.source.skip(c => valid(c) || c === '_')
         const span = this.source.endSpan()
         const s = span.toString()
         if(s.endsWith('_')) {
@@ -151,7 +154,7 @@ export class Lexer {
           return null
         }
 
-        const value = Number.parseInt(s.toString(), base)
+        const value = Number.parseInt(s.toString().replaceAll('_', ''), base)
 
         const wholeSpan = this.source.endSpan()
 
@@ -176,6 +179,8 @@ export class Lexer {
         this.source.startSpan()
         const exponent = this.number()
         if(!exponent) {
+          // TODO: i remember this being an issue but i dont remember why
+          /* c8 ignore next 3 */
           try {
           this.errorHandler(new DrizzleError(this.source.endSpan(), 'expected exponent', 'an exponent number looks like `10e6` for the value 10^6'))
           } catch(_) { }
@@ -194,11 +199,24 @@ export class Lexer {
     // namely, we're before a sequence like `.123`
     this.source.next()
     if(!isDigit(this.source.peek())) {
-      this.errorHandler(new DrizzleError(this.source.endSpan(), 'expected fractional-part', 'a float must have a form like `0.0`, not `.0` or `0.`'))
+      this.errorHandler(new DrizzleError(this.source.endSpan(), 'expected fractional part', 'a float must have a form like `0.0`, not `.0` or `0.`'))
       return null
     }
     this.source.next()
     this.source.skip(c => isDigit(c) || c === '_')
+    if(this.source.peek()?.toLowerCase() === 'e') {
+        this.source.next()
+        this.source.startSpan()
+        const exponent = this.number()
+        if(!exponent) {
+          // TODO: same as above
+          /* c8 ignore next 3 */
+          try {
+          this.errorHandler(new DrizzleError(this.source.endSpan(), 'expected exponent', 'an exponent number looks like `10e6` for the value 10^6'))
+          } catch(_) { }
+          return null
+        }
+    }
     return this.numericise(this.source.endSpan())
   }
 
@@ -301,10 +319,8 @@ export class Lexer {
         return ''
       }
       let span = this.hexOfLength(openingQuote, 4)
-      if(!span) return ''
       if(isHex(this.source.peek()) && isHex(this.source.peekOffset(1))) {
         const extension = this.hexOfLength(openingQuote, 2)
-        if(!extension) return ''
         span = Span.join(span, extension)
       }
       if(this.source.next() !== '}') {

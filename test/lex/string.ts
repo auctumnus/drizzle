@@ -1,6 +1,6 @@
 import { test } from 'uvu'
 import * as assert from 'uvu/assert'
-import { expectError, firstToken } from '../util'
+import { expectError, expectWarn, firstToken } from '../util'
 
 test('single quote', () => {
   firstToken(`'ab"c'`, t => {
@@ -10,7 +10,7 @@ test('single quote', () => {
 })
 
 test('escape', () => {
-  firstToken(`'a\nb'`, t => {
+  firstToken(`'a\\nb'`, t => {
     assert.is(t.kind.value, 'a\nb')
   })
 })
@@ -57,6 +57,21 @@ test('unclosed unicode escape', () => {
 test('end of string in escape', () => {
   expectError(`'a\\xa'`, e => {
     assert.ok(e.message.toLowerCase().includes('end of string'))
+  })
+})
+
+test('incomplete unicode escape', () => {
+  expectError(`'a\\u'`, e => {
+    assert.ok(e.message.includes('{') || e.message.toLowerCase().includes('unclosed'))
+  })
+})
+
+test('invalid escape sequence', () => {
+  expectWarn(`'\\g'`, w => {
+    assert.ok(w.message.includes('Invalid'))
+  })
+  firstToken(`'\\g'`, t => {
+    assert.is(t.kind.value, 'g')
   })
 })
 
